@@ -107,6 +107,10 @@ void setup() {
   for (int pin = 8; pin < 16; pin++) {
     TCA3.pinMode1(pin, INPUT);
   }
+
+  initializeLCD();  // Initialize the LCD
+  // writeStringToLCD("Hello, World!", 1);  // Write string to line 1
+  // writeStringToLCD("Arduino 2x20", 2);   // Write string to line 2
 }
 
 //============================================================================
@@ -115,6 +119,10 @@ void loop() {
   // cycle_IO();
   get_key();
   OLED_update();
+  // writeStringToLCD("Hello, World!", 1);  // Write string to line 1
+  // writeStringToLCD("Arduino 2x20", 2);   // Write string to line 2
+  write_one_char();
+  delay(5000);
 }
 
 //============================================================================
@@ -225,3 +233,82 @@ void output_port(byte databyte) {
 //============================================================================
 // End of file
 //============================================================================
+// from chatGPT
+// write to the ETW-3800 LCD display
+
+// Initialize the LCD in 8-bit mode
+void initializeLCD() {
+  TCA1.write16(0xB2C0);
+  // these 3 lines are inverted logic
+  TCA2.write1(10, HIGH);  // IOSEL high, Enable low
+  TCA3.write1(5, HIGH);   // RW low
+  TCA3.write1(6, HIGH);   // RS low
+  delay(80);
+  writeCommand(0x38);
+  delay(1);
+  writeCommand(0x38);
+  delay(1);
+
+  writeCommand(0x0E);  // display on, blink off, cursor off, display off
+  delay(1);
+  writeCommand(0x01);  // clear display
+  delay(10);
+  writeCommand(0x06);  // display not shifted, cursor increment
+  delay(10);
+  // writeCommand(0x0C);  // display on
+  // delay(10);
+}
+
+// Write a string to a specific line (1 or 2)
+void writeStringToLCD(const char *str, int line) {
+  if (line == 1) {
+    writeCommand(0x80);  // Line 1 starts at 0x80
+  } else if (line == 2) {
+    writeCommand(0xC0);  // Line 2 starts at 0xC0
+  }
+  // Write each character
+  while (*str) {
+    writeData(*str++);
+  }
+}
+
+// Write a command to the LCD
+void writeCommand(uint8_t cmd) {
+  TCA3.pinMode1(6, HIGH);  //  RS = 0 for command
+  write8Bits(cmd);
+  pulseEnable();
+}
+
+// Write data to the LCD
+void writeData(uint8_t data) {
+  TCA3.pinMode1(6, LOW);  //  RS = 1 for data
+  write8Bits(data);
+  pulseEnable();
+}
+
+// Send 8 bits to the data pins
+void write8Bits(uint8_t value) {
+  for (byte pin = 0; pin < 8; pin++) {  // set data port for output
+    TCA2.pinMode1(pin, OUTPUT);
+  }
+  TCA2.write8(0, value);
+}
+
+// Generate a pulse on the Enable pin
+void pulseEnable() {
+  TCA1.write16(0xB2C0);
+  delay(10);
+  TCA2.write1(10, LOW);  // IOSEL low  Enable high
+  delay(10);
+  TCA2.write1(10, HIGH);  // IOSEL high  Enable low
+  delay(100);
+}
+
+void write_one_char() {
+  writeCommand(0x0E);  // clear display
+  delay(10);
+  writeCommand(0x81);  // Line 1 starts at 0x80
+  delay(10);
+  writeData(0x41);
+  delay(10);
+}
