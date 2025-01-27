@@ -57,7 +57,7 @@ TCA9555 TCA3(0x22);
 // 14 - NC
 // 15 - NC
 
-//TCA3 bits
+//TCA2 bits
 // 0 - KEYCOL1
 // 1 - KEYCOL2
 // 2 - KEYCOL3
@@ -101,16 +101,16 @@ void setup() {
     TCA2.pinMode1(pin, OUTPUT);
   }
   TCA3.begin();
-  for (int pin = 0; pin < 8; pin++) {
+  for (int pin = 0; pin < 16; pin++) {
     TCA3.pinMode1(pin, OUTPUT);
   }
-  for (int pin = 8; pin < 16; pin++) {
-    TCA3.pinMode1(pin, INPUT);
-  }
+  // for (int pin = 8; pin < 16; pin++) {
+  //   TCA3.pinMode1(pin, INPUT);
+  // }
 
   initializeLCD();  // Initialize the LCD
-  // writeStringToLCD("Hello, World!", 1);  // Write string to line 1
-  // writeStringToLCD("Arduino 2x20", 2);   // Write string to line 2
+  writeStringToLCD("ETC-ATTiny", 1);  // Write string to line 1
+  writeStringToLCD("ImsaiGuy 2025", 2);   // Write string to line 2
 }
 
 //============================================================================
@@ -119,10 +119,8 @@ void loop() {
   // cycle_IO();
   get_key();
   OLED_update();
-  // writeStringToLCD("Hello, World!", 1);  // Write string to line 1
-  // writeStringToLCD("Arduino 2x20", 2);   // Write string to line 2
-  write_one_char();
-  delay(5000);
+  
+  // delay(3000);
 }
 
 //============================================================================
@@ -176,8 +174,7 @@ void get_key() {
     TCA2.pinMode1(pin, INPUT);
   }
   TCA2.write1(10, LOW);  // IOSEL low
-
-  TCA3.write1(0, LOW);  // set KEYCOL1
+  TCA3.write1(0, LOW);   // set KEYCOL1
   TCA3.write1(1, HIGH);
   TCA3.write1(2, HIGH);
   byte column1 = TCA2.read8(0);
@@ -215,7 +212,7 @@ void OLED_update() {
     oled.println(row);
     oled.print("Column = ");
     oled.println(column);
-    output_port(row);  // just for debug
+    // output_port(row);  // just for debug
   }
 }
 
@@ -230,25 +227,23 @@ void output_port(byte databyte) {
   TCA2.write8(0, databyte);
 }
 
-//============================================================================
-// End of file
-//============================================================================
-// from chatGPT
-// write to the ETW-3800 LCD display
 
+
+//============================================================================
+// write to the ETW-3800 LCD display
+//
 // Initialize the LCD in 8-bit mode
 void initializeLCD() {
-  TCA1.write16(0xB2C0);
+  TCA1.write16(0x02C0);  // LCD address
   // these 3 lines are inverted logic
   TCA2.write1(10, HIGH);  // IOSEL high, Enable low
   TCA3.write1(5, HIGH);   // RW low
   TCA3.write1(6, HIGH);   // RS low
   delay(80);
-  writeCommand(0x38);
+  writeCommand(0x38);  // 8-bit mode
   delay(1);
   writeCommand(0x38);
   delay(1);
-
   writeCommand(0x0E);  // display on, blink off, cursor off, display off
   delay(1);
   writeCommand(0x01);  // clear display
@@ -259,6 +254,7 @@ void initializeLCD() {
   // delay(10);
 }
 
+//============================================================================
 // Write a string to a specific line (1 or 2)
 void writeStringToLCD(const char *str, int line) {
   if (line == 1) {
@@ -272,20 +268,23 @@ void writeStringToLCD(const char *str, int line) {
   }
 }
 
+//============================================================================
 // Write a command to the LCD
 void writeCommand(uint8_t cmd) {
-  TCA3.pinMode1(6, HIGH);  //  RS = 0 for command
-  write8Bits(cmd);
+  TCA3.write1(6, HIGH);  //  RS = 0 for command
+  write8Bits(cmd);       // write command
   pulseEnable();
 }
 
+//============================================================================
 // Write data to the LCD
 void writeData(uint8_t data) {
-  TCA3.pinMode1(6, LOW);  //  RS = 1 for data
-  write8Bits(data);
+  TCA3.write1(6, LOW);  //  RS = 1 for data
+  write8Bits(data);     // write data
   pulseEnable();
 }
 
+//============================================================================
 // Send 8 bits to the data pins
 void write8Bits(uint8_t value) {
   for (byte pin = 0; pin < 8; pin++) {  // set data port for output
@@ -294,21 +293,17 @@ void write8Bits(uint8_t value) {
   TCA2.write8(0, value);
 }
 
+//============================================================================
 // Generate a pulse on the Enable pin
 void pulseEnable() {
-  TCA1.write16(0xB2C0);
-  delay(10);
-  TCA2.write1(10, LOW);  // IOSEL low  Enable high
-  delay(10);
-  TCA2.write1(10, HIGH);  // IOSEL high  Enable low
-  delay(100);
-}
+  TCA1.write16(0x02C0);
+    TCA2.write1(10, LOW);  // IOSEL low  Enable high
+    TCA2.write1(10, HIGH);  // IOSEL high  Enable low
+  }
 
-void write_one_char() {
-  writeCommand(0x0E);  // clear display
-  delay(10);
-  writeCommand(0x81);  // Line 1 starts at 0x80
-  delay(10);
-  writeData(0x41);
-  delay(10);
-}
+
+
+
+//============================================================================
+// End of file
+//============================================================================
