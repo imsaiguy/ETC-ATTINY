@@ -2,21 +2,24 @@
 //  ImsaiGuy 2025
 //  for the Heathkit ETC-3800
 //  this uses the ATTINY814
-//  uses OLED display connected to pins 8 (SDA) and 9 (SCL)
-//  sets address buss to 0xB240
-//  sends a count to data buss
-//  latches data into output port
-//  blinks line AI7 (connect to an LED)
-//  blinks LEDD
-//============================================================================
+//  uses OLED display connected to I2C
 
-#define LED 9     // PA2 routed to AI7, connect to LED
-#define Button 8  // routed to AI6
+// The software has checked these functions:
+// control LEDD
+// LCD display
+// keyboard interface
+// four IO lines IO0 IO1 IO2 IO3
+// input port
+// output port
+// address bus
+// data bus input/output
+//============================================================================
 
 #include <Tiny4kOLED.h>  // Driver for I2C 1306 OLED display
 #include "ModernDos8.h"  // Load font
 const DCfont *currentFont = FONT8X8MDOS;
 
+// I2C port expanders
 #include "TCA9555.h"
 TCA9555 TCA1(0x20);
 TCA9555 TCA2(0x21);
@@ -75,10 +78,11 @@ TCA9555 TCA3(0x22);
 // 14 - Ground
 // 15 - Ground
 
-int count = 0;
-byte row = 0;
-byte column = 0;
-
+int count = 0;    // used in count demo
+byte row = 0;     // key pressed row
+byte column = 0;  //key pressed column
+#define LED 9     // PA2 routed to AI7, connect to external LED
+#define Button 8  // routed to AI6, connect to external switch to ground
 //============================================================================
 void setup() {
   pinMode(LED, OUTPUT);
@@ -101,31 +105,36 @@ void setup() {
     TCA2.pinMode1(pin, OUTPUT);
   }
   TCA3.begin();
-  for (int pin = 0; pin < 16; pin++) {
+  for (int pin = 0; pin < 8; pin++) {
     TCA3.pinMode1(pin, OUTPUT);
   }
   // for (int pin = 8; pin < 16; pin++) {
   //   TCA3.pinMode1(pin, INPUT);
+  //   TCA3.pinMode1(pin, OUTPUT);
   // }
 
-  initializeLCD();  // Initialize the LCD
-  writeStringToLCD("ETC-ATTiny", 1);  // Write string to line 1
-  writeStringToLCD("ImsaiGuy 2025", 2);   // Write string to line 2
+  initializeLCD();                       // Initialize the LCD
+  writeStringToLCD("ETC-ATTiny814", 1);  // Write string to line 1
+  writeStringToLCD("ImsaiGuy 2025", 2);  // Write string to line 2
 }
 
 //============================================================================
 void loop() {
-  // counter_loop();
-  // cycle_IO();
-  get_key();
-  OLED_update();
-  
-  // delay(3000);
+  // counter_loop();  // counter increment and display
+  // cycle_IO(); // check the four IO lines
+  get_key();      //check for key press
+  OLED_update();  //update display if key pressed
 }
 
 //============================================================================
+// test program
+// flash LEDD
+// flash external LED
+// display count on OLED
+// output count to output port
+// increment count
 void counter_loop() {
-  TCA3.write1(7, HIGH);
+  TCA3.write1(7, HIGH);     // turn on LEDD
   digitalWrite(LED, HIGH);  // turn the LED on (HIGH is the voltage level)
   delay(50);                // wait for a second
   digitalWrite(LED, LOW);   // turn the LED off by making the voltage LOW
@@ -133,8 +142,7 @@ void counter_loop() {
   digitalWrite(LED, HIGH);  // turn the LED on (HIGH is the voltage level)
   delay(150);               // wait for a second
   digitalWrite(LED, LOW);   // turn the LED off by making the voltage LOW
-  // delay(300);               // wait for a second
-  TCA3.write1(7, LOW);
+  TCA3.write1(7, LOW);      // turn off LEDD
   delay(300);
   oled.setCursor(0, 10);
   oled.println(count);
@@ -155,6 +163,7 @@ void counter_loop() {
 
 //============================================================================
 // just for debug
+// address decode the four IO lines
 void cycle_IO() {        // these are the selects
   TCA1.write16(0x0300);  // IO port address IO0
   TCA2.write1(10, LOW);  // IOSEL low
@@ -169,7 +178,7 @@ void cycle_IO() {        // these are the selects
 // if key pressed row and column are set to key pressed
 // row and column are global variables
 void get_key() {
-  TCA1.write16(0xB200);                 // keyboard port address
+  TCA1.write16(0x0200);                 // keyboard port address
   for (byte pin = 0; pin < 8; pin++) {  // set data port for input
     TCA2.pinMode1(pin, INPUT);
   }
@@ -177,25 +186,25 @@ void get_key() {
   TCA3.write1(0, LOW);   // set KEYCOL1
   TCA3.write1(1, HIGH);
   TCA3.write1(2, HIGH);
-  byte column1 = TCA2.read8(0);
-  TCA3.write1(0, HIGH);
-  TCA3.write1(1, LOW);  // set KEYCOL2
+  byte column1 = TCA2.read8(0);  // read data bus
+  TCA3.write1(0, HIGH);          // set KEYCOL2
+  TCA3.write1(1, LOW);
   TCA3.write1(2, HIGH);
-  byte column2 = TCA2.read8(0);
-  TCA3.write1(0, HIGH);
+  byte column2 = TCA2.read8(0);  // read data bus
+  TCA3.write1(0, HIGH);          // set KEYCOL3
   TCA3.write1(1, HIGH);
-  TCA3.write1(2, LOW);           // set KEYCOL3
+  TCA3.write1(2, LOW);
   byte column3 = TCA2.read8(0);  // read data bus
   row = 0;
-  if (column1 != 0xff) {
+  if (column1 != 0xff) {  // check column 1 (right most)
     column = 1;
     row = __builtin_ctz(~column1);  // counts the number of trailing zeros
   }
-  if (column2 != 0xff) {
+  if (column2 != 0xff) {  // check column 2 (middle)
     column = 2;
     row = __builtin_ctz(~column2);
   }
-  if (column3 != 0xff) {
+  if (column3 != 0xff) {  // check column 1 (left most)
     column = 3;
     row = __builtin_ctz(~column3);
   }
@@ -204,7 +213,7 @@ void get_key() {
 //============================================================================
 // refresh the OLED display with latest data if a key was pressed
 void OLED_update() {
-  if (row != 0) {
+  if (row != 0) {  // update if a key pressed
     oled.clear();
     oled.setCursor(0, 0);
     oled.println("Last Key Pressed");
@@ -219,7 +228,7 @@ void OLED_update() {
 //============================================================================
 // output a byte to the ETC-3800 ouput port
 void output_port(byte databyte) {
-  TCA1.write16(0xB240);
+  TCA1.write16(0x0240);
   TCA2.write1(10, LOW);                 // IOSEL low
   for (byte pin = 0; pin < 8; pin++) {  // set data port for input
     TCA2.pinMode1(pin, OUTPUT);
@@ -227,12 +236,8 @@ void output_port(byte databyte) {
   TCA2.write8(0, databyte);
 }
 
-
-
 //============================================================================
 // write to the ETW-3800 LCD display
-//
-// Initialize the LCD in 8-bit mode
 void initializeLCD() {
   TCA1.write16(0x02C0);  // LCD address
   // these 3 lines are inverted logic
@@ -244,14 +249,11 @@ void initializeLCD() {
   delay(1);
   writeCommand(0x38);
   delay(1);
-  writeCommand(0x0E);  // display on, blink off, cursor off, display off
+  writeCommand(0x0C);  // display on, blink off, cursor off, display off
   delay(1);
   writeCommand(0x01);  // clear display
   delay(10);
   writeCommand(0x06);  // display not shifted, cursor increment
-  delay(10);
-  // writeCommand(0x0C);  // display on
-  // delay(10);
 }
 
 //============================================================================
@@ -290,19 +292,16 @@ void write8Bits(uint8_t value) {
   for (byte pin = 0; pin < 8; pin++) {  // set data port for output
     TCA2.pinMode1(pin, OUTPUT);
   }
-  TCA2.write8(0, value);
+  TCA2.write8(0, value);  // write to data bus
 }
 
 //============================================================================
 // Generate a pulse on the Enable pin
 void pulseEnable() {
-  TCA1.write16(0x02C0);
-    TCA2.write1(10, LOW);  // IOSEL low  Enable high
-    TCA2.write1(10, HIGH);  // IOSEL high  Enable low
-  }
-
-
-
+  TCA1.write16(0x02C0);   // LCD address
+  TCA2.write1(10, LOW);   // IOSEL low   LCD Enable high
+  TCA2.write1(10, HIGH);  // IOSEL high  LCD Enable low
+}
 
 //============================================================================
 // End of file
