@@ -221,7 +221,7 @@ void OLED_update() {
     oled.println(row);
     oled.print("Column = ");
     oled.println(column);
-    // output_port(row);  // just for debug
+    output_port(row);  // just for debug
   }
 }
 
